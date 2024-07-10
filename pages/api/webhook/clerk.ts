@@ -10,6 +10,7 @@ import { headers } from "next/headers";
 import { IncomingHttpHeaders } from "http";
 
 import type { NextApiRequest, NextApiResponse } from 'next'
+import {buffer} from 'micro'
 import {
   addMemberToCommunity,
   createCommunity,
@@ -17,6 +18,7 @@ import {
   removeUserFromCommunity,
   updateCommunityInfo,
 } from "@/lib/actions/community.actions";
+import { WebhookEvent } from "@clerk/nextjs/server";
 
 // Resource: https://clerk.com/docs/integration/webhooks#supported-events
 // Above document lists the supported events
@@ -34,44 +36,64 @@ type Event = {
   type: EventType;
 };
 
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
 export default async function handler(
     request: NextApiRequest,
     response: NextApiResponse
 ){
-  await cors(request, response);
-    
-  const payload = request.body;
-  const header = headers();
+  if(request.method !== 'POST'){
+    return response.status(405).json({message: 'Method not allowed'})
+  }
 
-  const heads = {
-    "svix-id": header.get("svix-id"),
-    "svix-timestamp": header.get("svix-timestamp"),
-    "svix-signature": header.get("svix-signature"),
-  };
+  const WEBHOOK_SECRET = process.env.NEXT_PUBLIC_CLERK_WEBHOOK_SECRET || ""
+    
+  if(!WEBHOOK_SECRET){
+    throw new Error('Please provide a webhook secret')
+  }
+
+  const svix_id = request.headers['svix-id'] as string
+  const svix_timestamp = request.headers['svix-timestamp'] as string
+  const svix_signature = request.headers['svix-signature'] as string
+
+  if(!svix_id || !svix_timestamp || !svix_signature){
+    return response.status(400).json({message: 'Missing headers'})
+  }
+
+  console.log('headers', request.headers, svix_id, svix_timestamp, svix_signature );
+  const body = (await buffer(request)).toString()
+  
+  const wh = new Webhook(WEBHOOK_SECRET);
+
+  let evt:WebhookEvent
+
+  try{
+    evt = wh.verify(body, {
+      "svix-id": svix_id,
+      "svix-timestamp": svix_timestamp,
+      "svix-signature": svix_signature,
+    }) as WebhookEvent
+  }catch(err){
+    console.error('Error verifying webhook', err)
+    return response.status(400).json({message: err})
+  }
 
   // Activitate Webhook in the Clerk Dashboard.
   // After adding the endpoint, you'll see the secret on the right side.
-  const wh = new Webhook(process.env.NEXT_PUBLIC_CLERK_WEBHOOK_SECRET || "");
 
-  let evnt: Event | null = null;
-
-  try {
-    evnt = wh.verify(
-      JSON.stringify(payload),
-      heads as IncomingHttpHeaders & WebhookRequiredHeaders
-    ) as Event;
-  } catch (err) {
-    return response.status(400).json({ message: err });
-  }
-
-  const eventType: EventType = evnt?.type!;
+  const eventType: any = evt?.type!;
 
   // Listen organization creation event
   if (eventType === "organization.created") {
     // Resource: https://clerk.com/docs/reference/backend-api/tag/Organizations#operation/CreateOrganization
     // Show what evnt?.data sends from above resource
+    //@ts-ignore
     const { id, name, slug, logo_url, image_url, created_by } =
-      evnt?.data ?? {};
+      evt?.data ?? {};
 
     try {
       // @ts-ignore
@@ -100,7 +122,7 @@ export default async function handler(
   if (eventType === "organizationInvitation.created") {
     try {
       // Resource: https://clerk.com/docs/reference/backend-api/tag/Organization-Invitations#operation/CreateOrganizationInvitation
-      console.log("Invitation created", evnt?.data);
+      console.log("Invitation created", evt?.data);
 
       return response.status(201).json(
         { message: "Invitation created" }
@@ -119,8 +141,8 @@ export default async function handler(
     try {
       // Resource: https://clerk.com/docs/reference/backend-api/tag/Organization-Memberships#operation/CreateOrganizationMembership
       // Show what evnt?.data sends from above resource
-      const { organization, public_user_data } = evnt?.data;
-      console.log("created", evnt?.data);
+      const { organization, public_user_data }:any = evt?.data;
+      console.log("created", evt?.data);
 
       // @ts-ignore
       await addMemberToCommunity(organization.id, public_user_data.user_id);
@@ -142,8 +164,8 @@ export default async function handler(
     try {
       // Resource: https://clerk.com/docs/reference/backend-api/tag/Organization-Memberships#operation/DeleteOrganizationMembership
       // Show what evnt?.data sends from above resource
-      const { organization, public_user_data } = evnt?.data;
-      console.log("removed", evnt?.data);
+      const { organization, public_user_data }:any = evt?.data;
+      console.log("removed", evt?.data);
 
       // @ts-ignore
       await removeUserFromCommunity(public_user_data.user_id, organization.id);
@@ -163,8 +185,8 @@ export default async function handler(
     try {
       // Resource: https://clerk.com/docs/reference/backend-api/tag/Organizations#operation/UpdateOrganization
       // Show what evnt?.data sends from above resource
-      const { id, logo_url, name, slug } = evnt?.data;
-      console.log("updated", evnt?.data);
+      const { id, logo_url, name, slug }:any = evt?.data;
+      console.log("updated", evt?.data);
 
       // @ts-ignore
       await updateCommunityInfo(id, name, slug, logo_url);
@@ -184,8 +206,8 @@ export default async function handler(
     try {
       // Resource: https://clerk.com/docs/reference/backend-api/tag/Organizations#operation/DeleteOrganization
       // Show what evnt?.data sends from above resource
-      const { id } = evnt?.data;
-      console.log("deleted", evnt?.data);
+      const { id } = evt?.data;
+      console.log("deleted", evt?.data);
 
       // @ts-ignore
       await deleteCommunity(id);
@@ -202,22 +224,3 @@ export default async function handler(
     }
   }
 };
-
-const cors = initMiddleware(
-  require("cors")({
-    origin: "*",
-    methods: ["POST", "GET", "OPTIONS"],
-  })
-);
-
-function initMiddleware(middleware: any) {
-  return (req: any, res: any) =>
-    new Promise((resolve, reject) => {
-      middleware(req, res, (result: any) => {
-        if (result instanceof Error) {
-          return reject(result);
-        }
-        return resolve(result);
-      });
-    });
-}
