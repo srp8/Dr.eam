@@ -46,9 +46,9 @@ export default async function handler(
     request: NextApiRequest,
     response: NextApiResponse
 ){
-  if(request.method !== 'PUT'){
-    return response.status(405).json({message: 'Method not allowed'})
-  }
+  // if(request.method !== 'PUT'){
+  //   return response.status(405).json({message: 'Method not allowed'})
+  // }
 
   const WEBHOOK_SECRET = process.env.NEXT_PUBLIC_CLERK_WEBHOOK_SECRET || ""
     
