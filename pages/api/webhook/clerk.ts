@@ -40,7 +40,7 @@ export default async function handler(
 ){
     console.log(request);
     
-  const payload = request.body;
+  const payload = request.body();
   const header = headers();
 
   const heads = {
