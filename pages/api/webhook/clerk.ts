@@ -38,7 +38,7 @@ export default async function handler(
     request: NextApiRequest,
     response: NextApiResponse
 ){
-    console.log(request.body);
+    console.log(request);
     
   const payload = request.body;
   const header = headers();
@@ -51,7 +51,7 @@ export default async function handler(
 
   // Activitate Webhook in the Clerk Dashboard.
   // After adding the endpoint, you'll see the secret on the right side.
-  const wh = new Webhook(process.env.NEXT_CLERK_WEBHOOK_SECRET || "");
+  const wh = new Webhook(process.env.NEXT_PUBLIC_CLERK_WEBHOOK_SECRET || "");
 
   let evnt: Event | null = null;
 
