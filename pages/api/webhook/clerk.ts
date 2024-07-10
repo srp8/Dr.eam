@@ -9,7 +9,7 @@ import { headers } from "next/headers";
 
 import { IncomingHttpHeaders } from "http";
 
-import type { NextApiRequest, NextApiResponse } from 'next'
+import { NextResponse } from "next/server";
 import {
   addMemberToCommunity,
   createCommunity,
@@ -34,13 +34,9 @@ type Event = {
   type: EventType;
 };
 
-export default async function handler(
-    request: NextApiRequest,
-    response: NextApiResponse
-){
-    console.log(request);
-    
-  const payload = request.body();
+export const POST = async (request: Request) => {
+  return NextResponse.json({ message: "Test" }, { status: 400 });
+  const payload = await request.json();
   const header = headers();
 
   const heads = {
@@ -51,7 +47,7 @@ export default async function handler(
 
   // Activitate Webhook in the Clerk Dashboard.
   // After adding the endpoint, you'll see the secret on the right side.
-  const wh = new Webhook(process.env.NEXT_PUBLIC_CLERK_WEBHOOK_SECRET || "");
+  const wh = new Webhook(process.env.NEXT_CLERK_WEBHOOK_SECRET || "");
 
   let evnt: Event | null = null;
 
@@ -61,7 +57,7 @@ export default async function handler(
       heads as IncomingHttpHeaders & WebhookRequiredHeaders
     ) as Event;
   } catch (err) {
-    return response.status(400).json({ message: err });
+    return NextResponse.json({ message: err }, { status: 400 });
   }
 
   const eventType: EventType = evnt?.type!;
@@ -85,11 +81,12 @@ export default async function handler(
         created_by
       );
 
-      return response.status(201).json({ message: "User created" });
+      return NextResponse.json({ message: "User created" }, { status: 201 });
     } catch (err) {
       console.log(err);
-      return response.status(500).json(
-        { message: "Internal Server Error" }
+      return NextResponse.json(
+        { message: "Internal Server Error" },
+        { status: 500 }
       );
     }
   }
@@ -102,14 +99,16 @@ export default async function handler(
       // Resource: https://clerk.com/docs/reference/backend-api/tag/Organization-Invitations#operation/CreateOrganizationInvitation
       console.log("Invitation created", evnt?.data);
 
-      return response.status(201).json(
-        { message: "Invitation created" }
+      return NextResponse.json(
+        { message: "Invitation created" },
+        { status: 201 }
       );
     } catch (err) {
       console.log(err);
 
-      return response.status(500).json(
-        { message: "Internal Server Error" }
+      return NextResponse.json(
+        { message: "Internal Server Error" },
+        { status: 500 }
       );
     }
   }
@@ -125,14 +124,16 @@ export default async function handler(
       // @ts-ignore
       await addMemberToCommunity(organization.id, public_user_data.user_id);
 
-      return response.status(201).json(
-        { message: "Invitation accepted" }
+      return NextResponse.json(
+        { message: "Invitation accepted" },
+        { status: 201 }
       );
     } catch (err) {
       console.log(err);
 
-      return response.status(505).json(
-        { message: "Internal Server Error" }
+      return NextResponse.json(
+        { message: "Internal Server Error" },
+        { status: 500 }
       );
     }
   }
@@ -148,12 +149,13 @@ export default async function handler(
       // @ts-ignore
       await removeUserFromCommunity(public_user_data.user_id, organization.id);
 
-      return response.status(201).json({ message: "Member removed" });
+      return NextResponse.json({ message: "Member removed" }, { status: 201 });
     } catch (err) {
       console.log(err);
 
-      return response.status(500).json(
-        { message: "Internal Server Error" }
+      return NextResponse.json(
+        { message: "Internal Server Error" },
+        { status: 500 }
       );
     }
   }
@@ -169,12 +171,13 @@ export default async function handler(
       // @ts-ignore
       await updateCommunityInfo(id, name, slug, logo_url);
 
-      return response.status(201).json({ message: "Member removed" });
+      return NextResponse.json({ message: "Member removed" }, { status: 201 });
     } catch (err) {
       console.log(err);
 
-      return response.status(500).json(
-        { message: "Internal Server Error" }
+      return NextResponse.json(
+        { message: "Internal Server Error" },
+        { status: 500 }
       );
     }
   }
@@ -190,14 +193,16 @@ export default async function handler(
       // @ts-ignore
       await deleteCommunity(id);
 
-      return response.status(201).json(
-        { message: "Organization deleted" }
+      return NextResponse.json(
+        { message: "Organization deleted" },
+        { status: 201 }
       );
     } catch (err) {
       console.log(err);
 
-      return response.status(500).json(
-        { message: "Internal Server Error" }
+      return NextResponse.json(
+        { message: "Internal Server Error" },
+        { status: 500 }
       );
     }
   }
